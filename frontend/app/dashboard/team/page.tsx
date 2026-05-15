@@ -1,0 +1,252 @@
+"use client";
+
+import React, { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import { Briefcase, HelpCircle, LayoutGrid, LogOut, Mail, Users } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { usePreferences } from '@/context/PreferencesContext';
+import type { AppLocale } from '@/context/PreferencesContext';
+import { API_BASE, authHeaders } from '@/lib/api';
+import { dashboardT } from '@/lib/dashboard-i18n';
+import { dashboardSkin } from '@/lib/dashboard-theme';
+import { openSupportEmail } from '@/lib/support';
+
+type TeamMemberRow = {
+  _id: string;
+  nom: string;
+  prenom: string;
+  email: string;
+  role: string;
+  job_role: string;
+  avatar_url?: string;
+  is_online: boolean;
+};
+
+function initials(prenom: string, nom: string) {
+  const a = (prenom?.[0] || '') + (nom?.[0] || '');
+  return a.toUpperCase() || '?';
+}
+
+export default function TeamPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const { user, logout, loading: authLoading } = useAuth();
+  const { locale, theme } = usePreferences();
+  const s = dashboardSkin(theme);
+  const isLight = theme === 'light';
+  const borderLine = isLight ? 'border-slate-200' : 'border-white/[0.06]';
+
+  const [members, setMembers] = useState<TeamMemberRow[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [loadError, setLoadError] = useState('');
+
+  const t = (key: string, vars?: Record<string, string | number>) =>
+    dashboardT(locale as AppLocale, key, vars);
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace('/');
+    }
+  }, [authLoading, user, router]);
+
+  useEffect(() => {
+    if (!user?.token) return;
+    let cancelled = false;
+    setLoadingMembers(true);
+    setLoadError('');
+    fetch(`${API_BASE}/api/team/members`, { headers: authHeaders(user.token) })
+      .then(async (res) => {
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || 'Failed to load team');
+        }
+        return (await res.json()) as TeamMemberRow[];
+      })
+      .then((data) => {
+        if (cancelled) return;
+        setMembers(Array.isArray(data) ? data : []);
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        setLoadError(e instanceof Error ? e.message : 'Failed to load team');
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLoadingMembers(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.token]);
+
+  const activeCount = useMemo(
+    () => members.filter((m) => m.is_online).length,
+    [members]
+  );
+
+  if (authLoading || !user) {
+    return (
+      <div
+        className={`min-h-screen flex items-center justify-center font-[Inter,system-ui,sans-serif] ${
+          theme === 'light' ? 'bg-slate-100 text-slate-500' : 'bg-[#0a0e17] text-slate-400'
+        }`}
+      >
+        {dashboardT(locale as AppLocale, 'loading')}
+      </div>
+    );
+  }
+
+  const jobLabel = user.job_role?.trim() || String(user.role || 'member').toUpperCase();
+
+  return (
+    <div className={`min-h-screen flex font-[Inter,system-ui,sans-serif] ${s.page}`}>
+      <aside className={`w-[260px] shrink-0 flex flex-col py-8 px-5 ${s.aside}`}>
+        <div className="flex items-center gap-3 px-2 mb-10">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#3b82f6] to-[#7c5cfc] flex items-center justify-center">
+            <LayoutGrid className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <p className={`font-bold text-lg leading-tight ${s.heading}`}>Nexus Task</p>
+            <p className={`text-[10px] font-bold tracking-[0.2em] ${s.muted}`}>
+              {t('workspace')}
+            </p>
+          </div>
+        </div>
+
+        <nav className="space-y-1 flex-1">
+          {[
+            { icon: LayoutGrid, labelKey: 'navDashboard' as const, href: '/dashboard', active: pathname === '/dashboard' },
+            { icon: Briefcase, labelKey: 'navBackoffice' as const, href: '/dashboard/backoffice', active: pathname?.startsWith('/dashboard/backoffice') },
+            { icon: Users, labelKey: 'navTeam' as const, href: '/dashboard/team', active: pathname?.startsWith('/dashboard/team') },
+          ].map(({ icon: Icon, labelKey, href, active }) => (
+            <Link
+              key={labelKey}
+              href={href}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                active ? s.navActive : s.navInactive
+              }`}
+            >
+              <Icon className="w-5 h-5 opacity-80" />
+              {t(labelKey)}
+            </Link>
+          ))}
+        </nav>
+
+        <button
+          type="button"
+          onClick={() => openSupportEmail(user.email, `${user.prenom} ${user.nom}`)}
+          className={`mt-3 flex items-center gap-3 px-3 py-2 text-sm w-full text-left ${s.helpHover}`}
+        >
+          <HelpCircle className="w-5 h-5 shrink-0" />
+          {t('helpSupport')}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            logout();
+            router.push('/');
+          }}
+          className="flex items-center gap-3 px-3 py-2 text-slate-500 hover:text-red-400 text-sm w-full text-left"
+        >
+          <LogOut className="w-5 h-5 shrink-0" />
+          {t('logOut')}
+        </button>
+      </aside>
+
+      <main className="flex-1 px-8 py-8">
+        <header className={`flex items-start justify-between pb-6 border-b ${s.header}`}>
+          <div>
+            <h1 className="text-2xl font-black tracking-tight">{t('teamTitle')}</h1>
+            <p className={`text-sm mt-1 ${s.subtle}`}>
+              {user.prenom} {user.nom} - {jobLabel}
+            </p>
+          </div>
+          <div className={`px-4 py-3 rounded-2xl ${s.border}`}>
+            <div className={`text-xs font-bold tracking-[0.2em] ${s.muted}`}>
+              {t('teamActiveCount')}
+            </div>
+            <div className="text-2xl font-black mt-1">{activeCount}</div>
+          </div>
+        </header>
+
+        {loadError ? (
+          <div className={`mt-6 px-4 py-3 rounded-2xl ${s.loadWarn}`}>{loadError}</div>
+        ) : null}
+
+        <section className="mt-6">
+          <div className={`rounded-3xl overflow-hidden ${s.border}`}>
+            <div className={`px-5 py-4 border-b ${borderLine}`}>
+              <h2 className="font-bold">{t('teamMembers')}</h2>
+            </div>
+
+            {loadingMembers ? (
+              <div className={`px-5 py-6 ${s.muted}`}>{t('loading')}</div>
+            ) : members.length === 0 ? (
+              <div className={`px-5 py-6 ${s.muted}`}>{t('teamEmpty')}</div>
+            ) : (
+              <div className={`divide-y ${s.divide}`}>
+                <div className={`grid grid-cols-12 gap-3 px-5 py-3 text-xs font-bold ${s.muted}`}>
+                  <div className="col-span-4">{t('teamMembers')}</div>
+                  <div className="col-span-2">{t('teamStatus')}</div>
+                  <div className="col-span-2">{t('teamRole')}</div>
+                  <div className="col-span-3">{t('teamEmail')}</div>
+                  <div className="col-span-1 text-right">{t('teamSendEmail')}</div>
+                </div>
+                {members.map((m) => (
+                  <div key={m._id} className="grid grid-cols-12 gap-3 px-5 py-4 items-center">
+                    <div className="col-span-4 flex items-center gap-3 min-w-0">
+                      <div className={`w-10 h-10 rounded-2xl border ${s.avatarBorder} bg-white/[0.04] flex items-center justify-center overflow-hidden`}>
+                        {m.avatar_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={m.avatar_url} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-xs font-black">{initials(m.prenom, m.nom)}</span>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-bold truncate">
+                          {m.prenom} {m.nom}
+                        </div>
+                        <div className={`text-xs truncate ${s.muted}`}>{m.job_role || '-'}</div>
+                      </div>
+                    </div>
+
+                    <div className="col-span-2 flex items-center gap-2">
+                      <span
+                        className={`w-2.5 h-2.5 rounded-full ${
+                          m.is_online ? 'bg-emerald-500' : 'bg-slate-500'
+                        }`}
+                      />
+                      <span className={`text-sm ${s.subtle}`}>
+                        {m.is_online ? t('teamOnline') : t('teamOffline')}
+                      </span>
+                    </div>
+
+                    <div className="col-span-2">
+                      <span className={`text-sm ${s.subtle}`}>{m.role}</span>
+                    </div>
+
+                    <div className="col-span-3 min-w-0">
+                      <span className={`text-sm truncate block ${s.subtle}`}>{m.email}</span>
+                    </div>
+
+                    <div className="col-span-1 flex justify-end">
+                      <a
+                        href={`mailto:${m.email}`}
+                        className={`inline-flex items-center justify-center w-10 h-10 rounded-xl ${s.iconBtn}`}
+                        title={t('teamSendEmail')}
+                      >
+                        <Mail className="w-5 h-5" />
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      </main>
+    </div>
+  );
+}
