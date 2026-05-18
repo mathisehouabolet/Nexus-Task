@@ -31,14 +31,6 @@ function parseDueDate(value) {
 // Body: { fullName, email, password, project: { name, objective, due_date }, invites?: [{ email, fullName?, role? }] }
 const registerWorkspace = async (req, res) => {
   try {
-    const existingUsers = await User.countDocuments();
-    if (existingUsers > 0) {
-      return res.status(400).json({
-        message:
-          "Onboarding dÃ©jÃ  effectuÃ©. Purgez d'abord les comptes si vous voulez recommencer.",
-      });
-    }
-
     const { fullName, email, password, project, invites } = req.body || {};
     if (!fullName || !email || !password) {
       return res.status(400).json({ message: 'fullName, email, password are required' });
@@ -50,6 +42,11 @@ const registerWorkspace = async (req, res) => {
     }
 
     const normalizedEmail = String(email).trim().toLowerCase();
+
+    const userExists = await User.findOne({ email: normalizedEmail });
+    if (userExists) {
+      return res.status(400).json({ message: 'Un compte avec cet email existe déjà.' });
+    }
     const { prenom, nom } = splitFullName(fullName);
 
     const owner = await User.create({
