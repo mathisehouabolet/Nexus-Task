@@ -181,7 +181,10 @@ export default function DashboardPage() {
         fetch(`${API_BASE}/api/team/active`, { headers: h }),
         fetch(`${API_BASE}/api/tasks`, { headers: h }),
       ]);
-      if (!sRes.ok) throw new Error('Failed to load summary');
+      if (!sRes.ok) {
+        const err = await sRes.json().catch(() => ({} as { message?: string }));
+        throw new Error(err.message ? `Summary: ${err.message}` : `Failed to load summary (${sRes.status})`);
+      }
       setSummary(await sRes.json());
       const focusData = fRes.ok ? await fRes.json() : null;
       setFocus(focusData && focusData._id ? focusData : null);

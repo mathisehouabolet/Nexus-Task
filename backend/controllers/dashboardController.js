@@ -1,8 +1,12 @@
 const Task = require('../models/Task');
 const taskScopeForUser = require('../utils/taskScopeForUser');
+const mongoose = require('mongoose');
 
 const getSummary = async (req, res) => {
   try {
+    if (mongoose.connection.readyState !== 1) {
+      return res.status(503).json({ message: 'Database not connected' });
+    }
     const scope = taskScopeForUser(req.user._id);
     const [total, completed, inProgress, toDo] = await Promise.all([
       Task.countDocuments(scope),
