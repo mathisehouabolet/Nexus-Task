@@ -101,7 +101,7 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen bg-[#0a0e17] flex items-center justify-center p-4 md:p-8 font-[Inter,system-ui,sans-serif] selection:bg-[#7c5cfc]/30">
       <div
-        className={`w-full max-w-[1100px] h-auto lg:h-[720px] bg-[#0d1117] rounded-3xl border border-white/[0.08] overflow-hidden flex flex-col lg:flex-row shadow-2xl shadow-black/40 transition-all duration-700 ${mounted ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
+        className={`w-full max-w-[1100px] h-auto lg:min-h-[720px] bg-[#0d1117] rounded-3xl border border-white/[0.08] overflow-hidden flex flex-col lg:flex-row shadow-2xl shadow-black/40 transition-all duration-700 ${mounted ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
       >
         {/* ─── Left Side – Hero / Marketing ─── */}
         <div className="hidden lg:flex lg:w-[45%] relative bg-gradient-to-b from-[#0d1117] to-[#0a0e17] border-r border-white/[0.06] p-12 flex-col justify-center overflow-hidden">
@@ -212,7 +212,7 @@ export default function RegisterPage() {
         </div>
 
         {/* ─── Right Side – Register Form ─── */}
-        <div className="w-full lg:w-[55%] p-8 md:p-16 flex flex-col justify-center bg-[#0d1117]">
+        <div className="w-full lg:w-[55%] p-8 md:p-12 lg:py-14 flex flex-col justify-center bg-[#0d1117]">
           <div className="max-w-[460px] w-full mx-auto">
             {/* Header */}
             <div className="mb-8 animate-fade-in-up">
