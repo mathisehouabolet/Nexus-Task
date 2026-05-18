@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Briefcase, HelpCircle, LayoutGrid, LogOut, Mail, Users } from 'lucide-react';
+import { Briefcase, HelpCircle, LayoutGrid, LogOut, Mail, Plus, Users } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { usePreferences } from '@/context/PreferencesContext';
 import type { AppLocale } from '@/context/PreferencesContext';
@@ -40,6 +40,7 @@ export default function TeamPage() {
   const [members, setMembers] = useState<TeamMemberRow[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const t = (key: string, vars?: Record<string, string | number>) =>
     dashboardT(locale as AppLocale, key, vars);
@@ -101,7 +102,82 @@ export default function TeamPage() {
 
   return (
     <div className={`min-h-screen flex font-[Inter,system-ui,sans-serif] ${s.page}`}>
-      <aside className={`w-[260px] shrink-0 flex flex-col py-8 px-5 ${s.aside}`}>
+      {/* Mobile Drawer Overlay */}
+      {mobileMenuOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex lg:hidden bg-black/60 backdrop-blur-sm"
+          onClick={() => setMobileMenuOpen(false)}
+        >
+          <div 
+            className={`w-[280px] h-full flex flex-col py-8 px-5 ${s.aside}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-2 mb-10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#3b82f6] to-[#7c5cfc] flex items-center justify-center">
+                  <LayoutGrid className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <p className={`font-bold text-lg leading-tight ${s.heading}`}>Nexus Task</p>
+                  <p className={`text-[10px] font-bold tracking-[0.2em] ${s.muted}`}>
+                    {t('workspace')}
+                  </p>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setMobileMenuOpen(false)}
+                className={`p-2 rounded-xl ${s.iconBtn}`}
+              >
+                <Plus className="w-5 h-5 rotate-45" />
+              </button>
+            </div>
+
+            <nav className="space-y-1 flex-1">
+              {[
+                { icon: LayoutGrid, labelKey: 'navDashboard' as const, href: '/dashboard', active: pathname === '/dashboard' },
+                { icon: Briefcase, labelKey: 'navBackoffice' as const, href: '/dashboard/backoffice', active: pathname?.startsWith('/dashboard/backoffice') },
+                { icon: Users, labelKey: 'navTeam' as const, href: '/dashboard/team', active: pathname?.startsWith('/dashboard/team') },
+              ].map(({ icon: Icon, labelKey, href, active }) => (
+                <Link
+                  key={labelKey}
+                  href={href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                    active ? s.navActive : s.navInactive
+                  }`}
+                >
+                  <Icon className="w-5 h-5 opacity-80" />
+                  {t(labelKey)}
+                </Link>
+              ))}
+            </nav>
+
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                openSupportEmail(user.email, `${user.prenom} ${user.nom}`);
+              }}
+              className={`mt-3 flex items-center gap-3 px-3 py-2 text-sm w-full text-left ${s.helpHover}`}
+            >
+              <HelpCircle className="w-5 h-5 shrink-0" />
+              {t('helpSupport')}
+            </button>
+            <button
+              type="button"
+              onClick={() => { logout(); router.push('/'); }}
+              className="flex items-center gap-3 px-3 py-2 text-slate-500 hover:text-red-400 text-sm w-full text-left"
+            >
+              <LogOut className="w-5 h-5 shrink-0" />
+              {t('logOut')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Sidebar */}
+      <aside className={`hidden lg:flex w-[260px] shrink-0 flex-col py-8 px-5 ${s.aside}`}>
         <div className="flex items-center gap-3 px-2 mb-10">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#3b82f6] to-[#7c5cfc] flex items-center justify-center">
             <LayoutGrid className="w-5 h-5 text-white" />
@@ -154,13 +230,25 @@ export default function TeamPage() {
         </button>
       </aside>
 
-      <main className="flex-1 px-8 py-8">
-        <header className={`flex items-start justify-between pb-6 border-b ${s.header}`}>
-          <div>
-            <h1 className="text-2xl font-black tracking-tight">{t('teamTitle')}</h1>
-            <p className={`text-sm mt-1 ${s.subtle}`}>
-              {user.prenom} {user.nom} - {jobLabel}
-            </p>
+      <main className="flex-1 px-4 py-6 md:px-8 md:py-8 min-w-0">
+        <header className={`flex items-start justify-between gap-4 pb-6 border-b ${s.header}`}>
+          <div className="flex items-start gap-3">
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(true)}
+              className={`p-2 rounded-xl lg:hidden ${s.iconBtn} mt-1`}
+              aria-label="Open menu"
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <div>
+              <h1 className="text-2xl font-black tracking-tight">{t('teamTitle')}</h1>
+              <p className={`text-sm mt-1 ${s.subtle}`}>
+                {user.prenom} {user.nom} - {jobLabel}
+              </p>
+            </div>
           </div>
           <div className={`px-4 py-3 rounded-2xl ${s.border}`}>
             <div className={`text-xs font-bold tracking-[0.2em] ${s.muted}`}>
@@ -186,7 +274,8 @@ export default function TeamPage() {
               <div className={`px-5 py-6 ${s.muted}`}>{t('teamEmpty')}</div>
             ) : (
               <div className={`divide-y ${s.divide}`}>
-                <div className={`grid grid-cols-12 gap-3 px-5 py-3 text-xs font-bold ${s.muted}`}>
+                {/* Header row - Hidden on mobile, shown on desktop */}
+                <div className={`hidden md:grid grid-cols-12 gap-3 px-5 py-3 text-xs font-bold ${s.muted}`}>
                   <div className="col-span-4">{t('teamMembers')}</div>
                   <div className="col-span-2">{t('teamStatus')}</div>
                   <div className="col-span-2">{t('teamRole')}</div>
@@ -194,9 +283,9 @@ export default function TeamPage() {
                   <div className="col-span-1 text-right">{t('teamSendEmail')}</div>
                 </div>
                 {members.map((m) => (
-                  <div key={m._id} className="grid grid-cols-12 gap-3 px-5 py-4 items-center">
-                    <div className="col-span-4 flex items-center gap-3 min-w-0">
-                      <div className={`w-10 h-10 rounded-2xl border ${s.avatarBorder} bg-white/[0.04] flex items-center justify-center overflow-hidden`}>
+                  <div key={m._id} className="flex flex-col md:grid md:grid-cols-12 gap-4 md:gap-3 px-5 py-4 items-start md:items-center">
+                    <div className="w-full md:col-span-4 flex items-center gap-3 min-w-0">
+                      <div className={`w-10 h-10 rounded-2xl border ${s.avatarBorder} bg-white/[0.04] flex items-center justify-center overflow-hidden shrink-0`}>
                         {m.avatar_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src={m.avatar_url} alt="" className="w-full h-full object-cover" />
@@ -204,7 +293,7 @@ export default function TeamPage() {
                           <span className="text-xs font-black">{initials(m.prenom, m.nom)}</span>
                         )}
                       </div>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <div className="font-bold truncate">
                           {m.prenom} {m.nom}
                         </div>
@@ -212,7 +301,7 @@ export default function TeamPage() {
                       </div>
                     </div>
 
-                    <div className="col-span-2 flex items-center gap-2">
+                    <div className="flex items-center gap-2 md:col-span-2">
                       <span
                         className={`w-2.5 h-2.5 rounded-full ${
                           m.is_online ? 'bg-emerald-500' : 'bg-slate-500'
@@ -223,15 +312,17 @@ export default function TeamPage() {
                       </span>
                     </div>
 
-                    <div className="col-span-2">
+                    <div className="md:col-span-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 md:hidden mr-2">Role:</span>
                       <span className={`text-sm ${s.subtle}`}>{m.role}</span>
                     </div>
 
-                    <div className="col-span-3 min-w-0">
-                      <span className={`text-sm truncate block ${s.subtle}`}>{m.email}</span>
+                    <div className="w-full md:col-span-3 min-w-0">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 md:hidden mr-2">Email:</span>
+                      <span className={`text-sm truncate inline-block md:block ${s.subtle}`}>{m.email}</span>
                     </div>
 
-                    <div className="col-span-1 flex justify-end">
+                    <div className="w-full md:col-span-1 flex justify-end md:justify-end">
                       <a
                         href={`mailto:${m.email}`}
                         className={`inline-flex items-center justify-center w-10 h-10 rounded-xl ${s.iconBtn}`}

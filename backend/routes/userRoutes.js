@@ -8,7 +8,8 @@ const {
   getUserById,
   updateUser,
   deleteUser,
-  authUser
+  authUser,
+  googleLogin
 } = require('../controllers/userController');
 
 // @desc    Get all users
@@ -38,5 +39,9 @@ router.post('/', createUser);
 // @desc    Auth user & get token
 // @route   POST /api/users/login
 router.post('/login', authUser);
+
+// @desc    Google auth user & get token
+// @route   POST /api/users/google-login
+router.post('/google-login', googleLogin);
 
 module.exports = router;

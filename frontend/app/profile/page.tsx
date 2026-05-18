@@ -104,7 +104,7 @@ export default function ProfilePage() {
 
   return (
     <div className={`min-h-screen font-[Inter,system-ui,sans-serif] ${s.page}`}>
-      <header className={`h-[72px] shrink-0 border-b flex items-center gap-4 px-8 ${s.border} ${s.header}`}>
+      <header className={`h-[72px] shrink-0 border-b flex items-center gap-4 px-4 md:px-8 ${s.border} ${s.header}`}>
         <Link
           href="/dashboard"
           className={`inline-flex items-center gap-2 text-sm font-semibold ${s.iconBtn} px-3 py-2 rounded-xl`}
@@ -115,7 +115,7 @@ export default function ProfilePage() {
         <div className="flex-1" />
       </header>
 
-      <main className="max-w-3xl mx-auto p-8">
+      <main className="max-w-3xl mx-auto p-4 md:p-8">
         <h1 className={`text-2xl font-bold mb-6 ${s.heading}`}>{title}</h1>
 
         <form onSubmit={submit} className={`rounded-2xl p-6 border ${s.border} ${isLight ? 'bg-white shadow-sm' : 'bg-[#0d1117]/60'}`}>

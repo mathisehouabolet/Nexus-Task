@@ -166,6 +166,7 @@ export default function DashboardPage() {
     'all' | 'To Do' | 'In Progress' | 'Completed'
   >('all');
   const [taskSearch, setTaskSearch] = useState('');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const token = user?.token ?? '';
 
@@ -383,8 +384,89 @@ export default function DashboardPage() {
         onCreated={refreshAll}
       />
 
+      {/* Mobile Drawer Overlay */}
+      {mobileMenuOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex lg:hidden bg-black/60 backdrop-blur-sm"
+          onClick={() => setMobileMenuOpen(false)}
+        >
+          <div 
+            className={`w-[280px] h-full flex flex-col py-8 px-5 ${s.aside}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-2 mb-10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#3b82f6] to-[#7c5cfc] flex items-center justify-center">
+                  <LayoutGrid className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <p className={`font-bold text-lg leading-tight ${s.heading}`}>Nexus Task</p>
+                  <p className={`text-[10px] font-bold tracking-[0.2em] ${s.muted}`}>
+                    {t('workspace')}
+                  </p>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setMobileMenuOpen(false)}
+                className={`p-2 rounded-xl ${s.iconBtn}`}
+              >
+                <Plus className="w-5 h-5 rotate-45" />
+              </button>
+            </div>
+
+            <nav className="space-y-1 flex-1">
+              {[
+                { icon: LayoutGrid, labelKey: 'navDashboard' as const, href: '/dashboard', active: pathname === '/dashboard' },
+                { icon: Briefcase, labelKey: 'navBackoffice' as const, href: '/dashboard/backoffice', active: pathname?.startsWith('/dashboard/backoffice') },
+                { icon: Users, labelKey: 'navTeam' as const, href: '/dashboard/team', active: pathname?.startsWith('/dashboard/team') },
+              ].map(({ icon: Icon, labelKey, href, active }) => (
+                <Link
+                  key={labelKey}
+                  href={href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                    active ? s.navActive : s.navInactive
+                  }`}
+                >
+                  <Icon className="w-5 h-5 opacity-80" />
+                  {t(labelKey)}
+                </Link>
+              ))}
+            </nav>
+
+            <button
+              type="button"
+              onClick={() => { setModalOpen(true); setMobileMenuOpen(false); }}
+              className="mt-6 w-full py-3 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-[#3b82f6] to-[#7c5cfc] hover:opacity-95 shadow-lg shadow-[#3b82f6]/20"
+            >
+              {t('newTask')}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                openSupportEmail(user.email, `${user.prenom} ${user.nom}`);
+              }}
+              className={`mt-3 flex items-center gap-3 px-3 py-2 text-sm w-full text-left ${s.helpHover}`}
+            >
+              <HelpCircle className="w-5 h-5 shrink-0" />
+              {t('helpSupport')}
+            </button>
+            <button
+              type="button"
+              onClick={() => { logout(); router.push('/'); }}
+              className="flex items-center gap-3 px-3 py-2 text-slate-500 hover:text-red-400 text-sm w-full text-left"
+            >
+              <LogOut className="w-5 h-5 shrink-0" />
+              {t('logOut')}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Sidebar */}
-      <aside className={`w-[260px] shrink-0 flex flex-col py-8 px-5 ${s.aside}`}>
+      <aside className={`hidden lg:flex w-[260px] shrink-0 flex-col py-8 px-5 ${s.aside}`}>
         <div className="flex items-center gap-3 px-2 mb-10">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#3b82f6] to-[#7c5cfc] flex items-center justify-center">
             <LayoutGrid className="w-5 h-5 text-white" />
@@ -445,7 +527,17 @@ export default function DashboardPage() {
 
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className={`h-[72px] shrink-0 border-b flex items-center gap-4 px-8 ${s.border} ${s.header}`}>
+        <header className={`h-[72px] shrink-0 border-b flex items-center gap-4 px-4 md:px-8 ${s.border} ${s.header}`}>
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(true)}
+            className={`p-2 rounded-xl lg:hidden ${s.iconBtn}`}
+            aria-label="Open menu"
+          >
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
           <div className="flex-1 max-w-xl relative">
             <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${s.muted}`} />
             <input
@@ -493,7 +585,7 @@ export default function DashboardPage() {
           </button>
         </header>
 
-        <main className="flex-1 overflow-auto p-8">
+        <main className="flex-1 overflow-auto p-4 md:p-8">
           {loadError && (
             <p className={`mb-4 text-sm rounded-xl px-4 py-2 ${s.loadWarn}`}>
               {loadError}
@@ -501,7 +593,7 @@ export default function DashboardPage() {
           )}
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
-            <section className={`xl:col-span-2 rounded-2xl p-8 ${s.border} ${theme === 'light' ? 'bg-white shadow-sm' : 'bg-[#0d1117]/60'}`}>
+            <section className={`xl:col-span-2 rounded-2xl p-6 md:p-8 ${s.border} ${theme === 'light' ? 'bg-white shadow-sm' : 'bg-[#0d1117]/60'}`}>
               <p className={`text-[10px] font-bold tracking-[0.2em] mb-2 ${s.muted}`}>
                 {t('workspaceOverview')}
               </p>

@@ -1,5 +1,7 @@
 const User = require('../models/User');
 const generateToken = require('../utils/generateToken');
+const { OAuth2Client } = require('google-auth-library');
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // @desc    Get all users
 // @route   GET /api/users
@@ -165,6 +167,72 @@ const deleteUser = async (req, res) => {
   }
 };
 
+// @desc    Google auth user & get token
+// @route   POST /api/users/google-login
+const googleLogin = async (req, res) => {
+  const { credential } = req.body;
+
+  try {
+    let email, nom, prenom, avatar_url;
+
+    // Support mock login for local development when GOOGLE_CLIENT_ID is not configured
+    if (credential && credential.startsWith('mock_google_')) {
+      const parts = credential.split('_');
+      email = parts[2] || 'mock@example.com';
+      prenom = parts[3] || 'Google';
+      nom = parts[4] || 'User';
+      avatar_url = '';
+    } else {
+      // Standard production token verification
+      const ticket = await googleClient.verifyIdToken({
+        idToken: credential,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+      const payload = ticket.getPayload();
+      email = payload.email;
+      prenom = payload.given_name || 'Google';
+      nom = payload.family_name || 'User';
+      avatar_url = payload.picture || '';
+    }
+
+    if (!email) {
+      return res.status(400).json({ message: 'Invalid Google token' });
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+
+    // Find or create user
+    let user = await User.findOne({ email: normalizedEmail });
+
+    if (!user) {
+      // Create user with a random secure password
+      const crypto = require('crypto');
+      const randomPassword = crypto.randomBytes(16).toString('hex');
+      user = await User.create({
+        nom,
+        prenom,
+        email: normalizedEmail,
+        password: randomPassword,
+        role: 'user',
+        avatar_url,
+      });
+    }
+
+    res.json({
+      _id: user._id,
+      nom: user.nom,
+      prenom: user.prenom,
+      email: user.email,
+      role: user.role,
+      avatar_url: user.avatar_url || '',
+      job_role: user.job_role || '',
+      token: generateToken(user._id),
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getUsers,
   getUsersByRole,
@@ -172,5 +240,6 @@ module.exports = {
   getUserById,
   updateUser,
   deleteUser,
-  authUser
+  authUser,
+  googleLogin
 };
