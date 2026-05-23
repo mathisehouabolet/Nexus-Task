@@ -5,6 +5,7 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 
 const connectDB = require('./config/db');
+const { isSandboxFromAddress } = require('./utils/emailService');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -29,6 +30,12 @@ app.get('/', (req, res) => {
 
 async function start() {
   await connectDB();
+  const resendFrom = process.env.RESEND_FROM || 'Nexus Task <onboarding@resend.dev>';
+  if (process.env.RESEND_API_KEY && isSandboxFromAddress(resendFrom)) {
+    console.warn(
+      '⚠️ [Resend] Mode test actif (onboarding@resend.dev) : les invitations ne partent que vers l\'email du compte Resend. Définissez RESEND_FROM avec un domaine vérifié pour inviter n\'importe qui.'
+    );
+  }
   app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
   });

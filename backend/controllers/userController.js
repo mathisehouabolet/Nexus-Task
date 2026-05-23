@@ -120,6 +120,15 @@ const updateUser = async (req, res) => {
     const user = await User.findById(req.params.id);
 
     if (user) {
+      if (
+        String(req.user._id) !== String(req.params.id) &&
+        req.user.projectId &&
+        user.projectId &&
+        String(req.user.projectId) !== String(user.projectId)
+      ) {
+        return res.status(403).json({ message: 'Forbidden' });
+      }
+
       user.nom = req.body.nom || user.nom;
       user.prenom = req.body.prenom || user.prenom;
       user.email = req.body.email || user.email;

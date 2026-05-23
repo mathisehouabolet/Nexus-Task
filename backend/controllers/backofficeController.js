@@ -3,14 +3,33 @@ const crypto = require('crypto');
 const User = require('../models/User');
 const Task = require('../models/Task');
 const Activity = require('../models/Activity');
+const { sendInvitationEmail } = require('../utils/emailService');
+const {
+  addInvitedUserToInviterProject,
+  formatInviteEmailError,
+} = require('../utils/inviteHelpers');
+const { userCanInvite } = require('../middleware/inviteMiddleware');
+const { assertUserInProject } = require('../utils/projectScope');
 
 function generateTempPassword() {
   return crypto.randomBytes(12).toString('hex');
 }
 
+const getCanInvite = async (req, res) => {
+  try {
+    const canInvite = await userCanInvite(req.user);
+    res.json({ canInvite });
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+};
+
 const listMembers = async (req, res) => {
   try {
-    const list = await User.find({ _id: { $ne: req.user._id } })
+    const list = await User.find({
+      projectId: req.projectId,
+      _id: { $ne: req.user._id },
+    })
       .select('nom prenom email role job_role avatar_url is_online createdAt')
       .sort({ is_online: -1, prenom: 1, nom: 1 })
       .lean();
@@ -40,7 +59,12 @@ const inviteMember = async (req, res) => {
       role: role || 'user',
       job_role: String(job_role || '').trim(),
       is_online: false,
+      projectId: req.projectId,
     });
+
+    await addInvitedUserToInviterProject(req.user._id, user._id);
+
+    const emailResult = await sendInvitationEmail(user.email, user.prenom, tempPassword);
 
     res.status(201).json({
       _id: user._id,
@@ -52,6 +76,8 @@ const inviteMember = async (req, res) => {
       job_role: user.job_role || '',
       is_online: user.is_online,
       tempPassword,
+      emailSent: !!emailResult?.ok,
+      emailError: formatInviteEmailError(emailResult),
     });
   } catch (e) {
     res.status(500).json({ message: e.message });
@@ -68,12 +94,15 @@ const deleteMember = async (req, res) => {
       return res.status(400).json({ message: 'Cannot delete yourself' });
     }
 
-    const user = await User.findById(id).lean();
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    const inTeam = await assertUserInProject(id, req.projectId);
+    if (!inTeam) return res.status(404).json({ message: 'User not found' });
 
-    await Task.updateMany({ assigned_users: id }, { $pull: { assigned_users: id } });
-    await Activity.deleteMany({ forUser: id });
-    await User.deleteOne({ _id: id });
+    await Task.updateMany(
+      { projectId: req.projectId, assigned_users: id },
+      { $pull: { assigned_users: id } }
+    );
+    await Activity.deleteMany({ projectId: req.projectId, forUser: id });
+    await User.deleteOne({ _id: id, projectId: req.projectId });
 
     res.json({ message: 'User removed', _id: id });
   } catch (e) {
@@ -87,7 +116,11 @@ const memberHistory = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: 'Invalid user id' });
     }
-    const list = await Activity.find({ forUser: id })
+
+    const inTeam = await assertUserInProject(id, req.projectId);
+    if (!inTeam) return res.status(404).json({ message: 'User not found' });
+
+    const list = await Activity.find({ projectId: req.projectId, forUser: id })
       .sort({ createdAt: -1 })
       .limit(50)
       .populate('user', 'nom prenom avatar_url')
@@ -103,7 +136,7 @@ const projectProgress = async (req, res) => {
     const project = String(req.query.project || '').trim();
     if (!project) return res.status(400).json({ message: 'project is required' });
 
-    const tasks = await Task.find({ project_name: project })
+    const tasks = await Task.find({ projectId: req.projectId, project_name: project })
       .select('status assigned_users')
       .lean();
 
@@ -116,7 +149,10 @@ const projectProgress = async (req, res) => {
       for (const u of t.assigned_users || []) memberIds.add(String(u));
     }
 
-    const members = await User.find({ _id: { $in: [...memberIds] } })
+    const members = await User.find({
+      _id: { $in: [...memberIds] },
+      projectId: req.projectId,
+    })
       .select('nom prenom email role job_role avatar_url is_online')
       .lean();
 
@@ -150,6 +186,7 @@ const projectProgress = async (req, res) => {
 };
 
 module.exports = {
+  getCanInvite,
   listMembers,
   inviteMember,
   deleteMember,

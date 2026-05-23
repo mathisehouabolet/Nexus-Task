@@ -15,6 +15,11 @@ const activitySchema = new mongoose.Schema(
     },
     target_item_name: { type: String, required: true, trim: true },
     department: { type: String, default: '' },
+    projectId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Project',
+      index: true,
+    },
   },
   { timestamps: true }
 );

@@ -3,6 +3,7 @@ const User = require('../models/User');
 const getActiveTeam = async (req, res) => {
   try {
     const members = await User.find({
+      projectId: req.projectId,
       _id: { $ne: req.user._id },
       is_online: true,
     })
@@ -18,6 +19,7 @@ const getActiveTeam = async (req, res) => {
 const getTeamMembers = async (req, res) => {
   try {
     const members = await User.find({
+      projectId: req.projectId,
       _id: { $ne: req.user._id },
     })
       .select('nom prenom email role job_role avatar_url is_online')

@@ -26,9 +26,9 @@ export default function RegisterPage() {
   const [projectObjective, setProjectObjective] = useState('');
   const [projectDueDate, setProjectDueDate] = useState('');
   const [inviteEmails, setInviteEmails] = useState('');
-  const [inviteResult, setInviteResult] = useState<Array<{ email: string; tempPassword: string }>>(
-    []
-  );
+  const [inviteResult, setInviteResult] = useState<
+    Array<{ email: string; tempPassword: string; emailSent?: boolean; emailError?: string | null }>
+  >([]);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -80,9 +80,11 @@ export default function RegisterPage() {
 
       if (Array.isArray(data.invited)) {
         setInviteResult(
-          data.invited.map((row: any) => ({
+          data.invited.map((row: { email?: string; tempPassword?: string; emailSent?: boolean; emailError?: string | null }) => ({
             email: String(row.email || ''),
             tempPassword: String(row.tempPassword || ''),
+            emailSent: row.emailSent,
+            emailError: row.emailError,
           }))
         );
       }
@@ -400,9 +402,16 @@ export default function RegisterPage() {
                     </div>
                     <div className="space-y-2">
                       {inviteResult.map((r) => (
-                        <div key={r.email} className="flex items-center justify-between gap-3">
-                          <div className="text-xs text-slate-300 truncate">{r.email}</div>
-                          <div className="text-xs font-mono text-white">{r.tempPassword}</div>
+                        <div key={r.email} className="space-y-0.5">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="text-xs text-slate-300 truncate">{r.email}</div>
+                            <div className="text-xs font-mono text-white">{r.tempPassword}</div>
+                          </div>
+                          {r.emailSent ? (
+                            <div className="text-[10px] text-emerald-400">Email envoyé</div>
+                          ) : r.emailError ? (
+                            <div className="text-[10px] text-amber-400">{r.emailError}</div>
+                          ) : null}
                         </div>
                       ))}
                     </div>

@@ -1,5 +1,5 @@
 const Task = require('../models/Task');
-const taskScopeForUser = require('../utils/taskScopeForUser');
+const { taskScopeForProject } = require('../utils/projectScope');
 const mongoose = require('mongoose');
 
 const getSummary = async (req, res) => {
@@ -7,7 +7,7 @@ const getSummary = async (req, res) => {
     if (mongoose.connection.readyState !== 1) {
       return res.status(503).json({ message: 'Database not connected' });
     }
-    const scope = taskScopeForUser(req.user._id);
+    const scope = taskScopeForProject(req.projectId);
     const [total, completed, inProgress, toDo] = await Promise.all([
       Task.countDocuments(scope),
       Task.countDocuments({ ...scope, status: 'Completed' }),
@@ -52,7 +52,7 @@ const getSummary = async (req, res) => {
 
 const getFocusTask = async (req, res) => {
   try {
-    const scope = taskScopeForUser(req.user._id);
+    const scope = taskScopeForProject(req.projectId);
     const tasks = await Task.find({
       ...scope,
       status: { $ne: 'Completed' },

@@ -130,3 +130,13 @@ input:focus {
 .btn-shimmer:active {
   transform: translateY(0);
 }
+
+/* Fix dark mode calendar icon visibility */
+html[data-theme="dark"] {
+  color-scheme: dark;
+}
+html[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
+html[data-theme="dark"] input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(100);
+  cursor: pointer;
+}

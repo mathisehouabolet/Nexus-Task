@@ -986,9 +986,7 @@ export default function DashboardPage() {
                   ))}
                 </ul>
               )}
-              <p className="text-xs text-[#3b82f6] cursor-pointer hover:underline">
-                {t('manageTeam')}
-              </p>
+
               <button
                 type="button"
                 onClick={() => setModalOpen(true)}

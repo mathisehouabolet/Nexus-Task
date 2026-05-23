@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { ensureUserProject } = require('../utils/projectScope');
 
 const protect = async (req, res, next) => {
   let token;
@@ -17,6 +18,7 @@ const protect = async (req, res, next) => {
     if (!req.user) {
       return res.status(401).json({ message: 'Not authorized, user not found' });
     }
+    await ensureUserProject(req.user);
     next();
   } catch (e) {
     return res.status(401).json({ message: 'Not authorized, token invalid' });

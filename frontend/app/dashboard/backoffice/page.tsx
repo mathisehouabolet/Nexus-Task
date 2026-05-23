@@ -83,9 +83,13 @@ export default function BackofficePage() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'user' | 'manager' | 'admin'>('user');
   const [inviteJobRole, setInviteJobRole] = useState('');
-  const [inviteResult, setInviteResult] = useState<{ email: string; tempPassword: string } | null>(
-    null
-  );
+  const [canInvite, setCanInvite] = useState(false);
+  const [inviteResult, setInviteResult] = useState<{
+    email: string;
+    tempPassword: string;
+    emailSent?: boolean;
+    emailError?: string | null;
+  } | null>(null);
 
   const [selectedMemberId, setSelectedMemberId] = useState<string>('');
   const [history, setHistory] = useState<ActivityRow[]>([]);
@@ -210,8 +214,14 @@ export default function BackofficePage() {
         }),
       });
       const data = await res.json().catch(() => ({}));
+      if (res.status === 403) throw new Error(data.message || t('backofficeInviteForbidden'));
       if (!res.ok) throw new Error(data.message || 'Invite failed');
-      setInviteResult({ email: data.email, tempPassword: data.tempPassword });
+      setInviteResult({
+        email: data.email,
+        tempPassword: data.tempPassword,
+        emailSent: data.emailSent,
+        emailError: data.emailError,
+      });
       setInviteNom('');
       setInvitePrenom('');
       setInviteEmail('');
@@ -466,6 +476,9 @@ export default function BackofficePage() {
               <div className={`px-5 py-4 border-b ${borderLine}`}>
                 <h2 className="font-bold">{t('backofficeInvite')}</h2>
               </div>
+              {!canInvite ? (
+                <p className={`p-5 text-sm ${s.muted}`}>{t('backofficeInviteForbidden')}</p>
+              ) : (
               <form onSubmit={invite} className="p-5 space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <input
@@ -521,9 +534,19 @@ export default function BackofficePage() {
                     </div>
                     <div className="font-mono text-sm mt-1">{inviteResult.tempPassword}</div>
                     <div className={`text-xs mt-1 ${s.muted}`}>{inviteResult.email}</div>
+                    {inviteResult.emailSent ? (
+                      <p className="text-xs text-emerald-500 mt-2">
+                        {t('backofficeEmailSent', { email: inviteResult.email })}
+                      </p>
+                    ) : inviteResult.emailError ? (
+                      <p className="text-xs text-amber-500 mt-2">
+                        {t('backofficeEmailFailed', { error: inviteResult.emailError })}
+                      </p>
+                    ) : null}
                   </div>
                 ) : null}
               </form>
+              )}
             </div>
           </section>
 

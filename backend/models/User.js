@@ -26,7 +26,13 @@ const userSchema = new mongoose.Schema({
   },
   avatar_url: { type: String, default: '' },
   job_role: { type: String, default: '' },
-  is_online: { type: Boolean, default: false }
+  is_online: { type: Boolean, default: false },
+  projectId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Project',
+    default: null,
+    index: true,
+  },
 }, {
   timestamps: true
 });

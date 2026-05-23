@@ -1,11 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/authMiddleware');
+const { requireWorkspace } = require('../middleware/projectMiddleware');
 const { createTask, updateTask, listTasks, deleteTask } = require('../controllers/taskController');
 
-router.get('/', protect, listTasks);
-router.post('/', protect, createTask);
-router.patch('/:id', protect, updateTask);
-router.delete('/:id', protect, deleteTask);
+router.use(protect, requireWorkspace);
+
+router.get('/', listTasks);
+router.post('/', createTask);
+router.patch('/:id', updateTask);
+router.delete('/:id', deleteTask);
 
 module.exports = router;

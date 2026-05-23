@@ -2,6 +2,8 @@ const crypto = require('crypto');
 const User = require('../models/User');
 const Project = require('../models/Project');
 const generateToken = require('../utils/generateToken');
+const { sendInvitationEmail } = require('../utils/emailService');
+const { formatInviteEmailError } = require('../utils/inviteHelpers');
 
 function generateTempPassword() {
   return crypto.randomBytes(12).toString('hex');
@@ -73,7 +75,10 @@ const registerWorkspace = async (req, res) => {
         password: tempPassword,
         role: row?.role || 'user',
         is_online: false,
+        projectId: null,
       });
+      const emailResult = await sendInvitationEmail(user.email, user.prenom, tempPassword);
+
       createdInvites.push({
         _id: user._id,
         nom: user.nom,
@@ -81,6 +86,8 @@ const registerWorkspace = async (req, res) => {
         email: user.email,
         role: user.role,
         tempPassword,
+        emailSent: !!emailResult?.ok,
+        emailError: formatInviteEmailError(emailResult),
       });
     }
 
@@ -91,6 +98,14 @@ const registerWorkspace = async (req, res) => {
       createdBy: owner._id,
       members: [owner._id, ...createdInvites.map((u) => u._id)],
     });
+
+    await User.updateOne({ _id: owner._id }, { projectId: proj._id });
+    if (createdInvites.length) {
+      await User.updateMany(
+        { _id: { $in: createdInvites.map((u) => u._id) } },
+        { projectId: proj._id }
+      );
+    }
 
     return res.status(201).json({
       user: {

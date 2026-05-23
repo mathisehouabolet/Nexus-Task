@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const Task = require('../models/Task');
 const Activity = require('../models/Activity');
-const taskScopeForUser = require('../utils/taskScopeForUser');
+const { taskScopeForProject, filterAssigneesToProject } = require('../utils/projectScope');
 
 const ALLOWED_STATUS = ['To Do', 'In Progress', 'Completed'];
 const ALLOWED_PRIORITY = ['Urgent', 'High', 'Normal'];
@@ -15,6 +15,7 @@ function parseDueDate(value) {
 const logActivity = async ({
   userId,
   forUser,
+  projectId,
   action_type,
   target_item_name,
   department,
@@ -22,6 +23,7 @@ const logActivity = async ({
   await Activity.create({
     user: userId,
     forUser,
+    projectId,
     action_type,
     target_item_name,
     department: department || '',
@@ -31,6 +33,7 @@ const logActivity = async ({
 const logActivityForUsers = async ({
   userId,
   forUsers,
+  projectId,
   action_type,
   target_item_name,
   department,
@@ -44,6 +47,7 @@ const logActivityForUsers = async ({
     uniq.map((uid) => ({
       user: userId,
       forUser: uid,
+      projectId,
       action_type,
       target_item_name,
       department: department || '',
@@ -83,10 +87,7 @@ const createTask = async (req, res) => {
       return res.status(400).json({ message: 'Invalid priority' });
     }
 
-    let assignees = [];
-    if (Array.isArray(assigned_users) && assigned_users.length) {
-      assignees = assigned_users.filter((id) => mongoose.Types.ObjectId.isValid(id));
-    }
+    const assignees = await filterAssigneesToProject(assigned_users, req.projectId);
 
     const dept = typeof department === 'string' ? department.trim() : '';
 
@@ -100,12 +101,14 @@ const createTask = async (req, res) => {
       department: dept,
       assigned_users: assignees,
       createdBy: req.user._id,
+      projectId: req.projectId,
     });
 
     try {
       await logActivity({
         userId: req.user._id,
         forUser: req.user._id,
+        projectId: req.projectId,
         action_type: 'created',
         target_item_name: task.title,
         department: dept,
@@ -127,7 +130,7 @@ const createTask = async (req, res) => {
 
 const updateTask = async (req, res) => {
   try {
-    const scope = taskScopeForUser(req.user._id);
+    const scope = taskScopeForProject(req.projectId);
     const task = await Task.findOne({ _id: req.params.id, ...scope });
 
     if (!task) {
@@ -159,8 +162,9 @@ const updateTask = async (req, res) => {
       task.due_date = parseDueDate(req.body.due_date);
     }
     if (Array.isArray(req.body.assigned_users)) {
-      task.assigned_users = req.body.assigned_users.filter((id) =>
-        mongoose.Types.ObjectId.isValid(id)
+      task.assigned_users = await filterAssigneesToProject(
+        req.body.assigned_users,
+        req.projectId
       );
     }
 
@@ -176,6 +180,7 @@ const updateTask = async (req, res) => {
         await logActivityForUsers({
           userId: req.user._id,
           forUsers: nextAssignees,
+          projectId: req.projectId,
           action_type: 'updated',
           target_item_name: task.title,
           department: dept,
@@ -189,6 +194,7 @@ const updateTask = async (req, res) => {
         await logActivity({
           userId: req.user._id,
           forUser: req.user._id,
+          projectId: req.projectId,
           action_type: 'completed',
           target_item_name: task.title,
           department: dept,
@@ -196,6 +202,7 @@ const updateTask = async (req, res) => {
         await logActivityForUsers({
           userId: req.user._id,
           forUsers: task.assigned_users || [],
+          projectId: req.projectId,
           action_type: 'completed',
           target_item_name: task.title,
           department: dept,
@@ -204,6 +211,7 @@ const updateTask = async (req, res) => {
         await logActivity({
           userId: req.user._id,
           forUser: req.user._id,
+          projectId: req.projectId,
           action_type: 'updated',
           target_item_name: task.title,
           department: dept,
@@ -211,6 +219,7 @@ const updateTask = async (req, res) => {
         await logActivityForUsers({
           userId: req.user._id,
           forUsers: task.assigned_users || [],
+          projectId: req.projectId,
           action_type: 'updated',
           target_item_name: task.title,
           department: dept,
@@ -231,7 +240,7 @@ const updateTask = async (req, res) => {
 
 const listTasks = async (req, res) => {
   try {
-    const scope = taskScopeForUser(req.user._id);
+    const scope = taskScopeForProject(req.projectId);
     const tasks = await Task.find(scope)
       .sort({ updatedAt: -1 })
       .populate('assigned_users', 'nom prenom avatar_url')
@@ -244,7 +253,7 @@ const listTasks = async (req, res) => {
 
 const deleteTask = async (req, res) => {
   try {
-    const scope = taskScopeForUser(req.user._id);
+    const scope = taskScopeForProject(req.projectId);
     const task = await Task.findOneAndDelete({
       _id: req.params.id,
       ...scope,
