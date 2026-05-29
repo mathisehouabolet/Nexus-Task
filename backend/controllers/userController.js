@@ -43,6 +43,7 @@ const authUser = async (req, res) => {
         role: user.role,
         avatar_url: user.avatar_url || '',
         job_role: user.job_role || '',
+        projectId: user.projectId,
         token: generateToken(user._id)
       });
     } else {
@@ -82,6 +83,7 @@ const createUser = async (req, res) => {
         role: user.role,
         avatar_url: user.avatar_url || '',
         job_role: user.job_role || '',
+        projectId: user.projectId,
         token: generateToken(user._id)
       });
     }
@@ -150,6 +152,7 @@ const updateUser = async (req, res) => {
         role: updatedUser.role,
         avatar_url: updatedUser.avatar_url || '',
         job_role: updatedUser.job_role || '',
+        projectId: updatedUser.projectId,
       });
     } else {
       res.status(404).json({ message: 'User not found' });
@@ -235,6 +238,7 @@ const googleLogin = async (req, res) => {
       role: user.role,
       avatar_url: user.avatar_url || '',
       job_role: user.job_role || '',
+      projectId: user.projectId,
       token: generateToken(user._id),
     });
   } catch (error) {

@@ -78,18 +78,15 @@ export default function BackofficePage() {
   const [loadingAll, setLoadingAll] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const [inviteNom, setInviteNom] = useState('');
-  const [invitePrenom, setInvitePrenom] = useState('');
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<'user' | 'manager' | 'admin'>('user');
-  const [inviteJobRole, setInviteJobRole] = useState('');
-  const [canInvite, setCanInvite] = useState(false);
-  const [inviteResult, setInviteResult] = useState<{
-    email: string;
-    tempPassword: string;
-    emailSent?: boolean;
-    emailError?: string | null;
-  } | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [accessLoading, setAccessLoading] = useState(true);
+  const [copiedInviteLink, setCopiedInviteLink] = useState(false);
+  const [savingRoleId, setSavingRoleId] = useState<string | null>(null);
+
+  const inviteLink = useMemo(() => {
+    if (typeof window === 'undefined' || !user?.projectId) return '';
+    return `${window.location.origin}/register?invite=${user.projectId}`;
+  }, [user?.projectId]);
 
   const [selectedMemberId, setSelectedMemberId] = useState<string>('');
   const [history, setHistory] = useState<ActivityRow[]>([]);
@@ -110,11 +107,28 @@ export default function BackofficePage() {
     if (!authLoading && !user) router.replace('/');
   }, [authLoading, user, router]);
 
+  const checkAccess = async () => {
+    if (!user?.token) return false;
+    const res = await fetch(`${API_BASE}/api/backoffice/access`, {
+      headers: authHeaders(user.token),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.message || 'Backoffice access denied');
+    }
+    const data = (await res.json()) as { isAdmin?: boolean };
+    return !!data.isAdmin;
+  };
+
   const refreshAll = async () => {
     if (!user?.token) return;
     setLoadingAll(true);
     setLoadError('');
     try {
+      const admin = await checkAccess();
+      setIsAdmin(admin);
+      if (!admin) return;
+
       const h = authHeaders(user.token);
       const [mRes, tRes] = await Promise.all([
         fetch(`${API_BASE}/api/backoffice/members`, { headers: h }),
@@ -134,7 +148,26 @@ export default function BackofficePage() {
   };
 
   useEffect(() => {
-    if (user?.token) refreshAll();
+    if (!user?.token) return;
+    let cancelled = false;
+    setAccessLoading(true);
+    checkAccess()
+      .then((admin) => {
+        if (cancelled) return;
+        setIsAdmin(admin);
+        if (admin) return refreshAll();
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) {
+          setLoadError(e instanceof Error ? e.message : 'Load failed');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setAccessLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.token]);
 
@@ -196,40 +229,25 @@ export default function BackofficePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProject]);
 
-  const invite = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const updateMemberRole = async (memberId: string, role: string) => {
     if (!user?.token) return;
-    setInviteResult(null);
+    setSavingRoleId(memberId);
     setLoadError('');
     try {
-      const res = await fetch(`${API_BASE}/api/backoffice/invite`, {
-        method: 'POST',
+      const res = await fetch(`${API_BASE}/api/backoffice/members/${memberId}/role`, {
+        method: 'PATCH',
         headers: authHeaders(user.token),
-        body: JSON.stringify({
-          nom: inviteNom,
-          prenom: invitePrenom,
-          email: inviteEmail,
-          role: inviteRole,
-          job_role: inviteJobRole,
-        }),
+        body: JSON.stringify({ role }),
       });
       const data = await res.json().catch(() => ({}));
-      if (res.status === 403) throw new Error(data.message || t('backofficeInviteForbidden'));
-      if (!res.ok) throw new Error(data.message || 'Invite failed');
-      setInviteResult({
-        email: data.email,
-        tempPassword: data.tempPassword,
-        emailSent: data.emailSent,
-        emailError: data.emailError,
-      });
-      setInviteNom('');
-      setInvitePrenom('');
-      setInviteEmail('');
-      setInviteJobRole('');
-      setInviteRole('user');
-      await refreshAll();
-    } catch (e2: unknown) {
-      setLoadError(e2 instanceof Error ? e2.message : 'Invite failed');
+      if (!res.ok) throw new Error(data.message || 'Role update failed');
+      setMembers((prev) =>
+        prev.map((m) => (m._id === memberId ? { ...m, role: data.role || role } : m))
+      );
+    } catch (e: unknown) {
+      setLoadError(e instanceof Error ? e.message : 'Role update failed');
+    } finally {
+      setSavingRoleId(null);
     }
   };
 
@@ -470,84 +488,52 @@ export default function BackofficePage() {
           <div className={`mt-6 px-4 py-3 rounded-2xl ${s.loadWarn}`}>{loadError}</div>
         ) : null}
 
+        {accessLoading ? (
+          <div className={`mt-10 text-center ${s.muted}`}>{t('loading')}</div>
+        ) : !isAdmin ? (
+          <div className={`mt-10 max-w-lg mx-auto rounded-3xl p-8 text-center ${s.border}`}>
+            <p className={`text-sm leading-relaxed ${s.subtle}`}>{t('backofficeNotAdmin')}</p>
+            <Link
+              href="/dashboard"
+              className="inline-block mt-6 px-5 py-2.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-[#3b82f6] to-[#7c5cfc]"
+            >
+              {t('navDashboard')}
+            </Link>
+          </div>
+        ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-6">
-          <section className="lg:col-span-5">
-            <div className={`rounded-3xl overflow-hidden ${s.border}`}>
-              <div className={`px-5 py-4 border-b ${borderLine}`}>
-                <h2 className="font-bold">{t('backofficeInvite')}</h2>
-              </div>
-              {!canInvite ? (
-                <p className={`p-5 text-sm ${s.muted}`}>{t('backofficeInviteForbidden')}</p>
-              ) : (
-              <form onSubmit={invite} className="p-5 space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <input
-                    className={`w-full px-3 py-2 rounded-xl border text-sm ${s.input}`}
-                    placeholder="Prenom"
-                    value={invitePrenom}
-                    onChange={(e) => setInvitePrenom(e.target.value)}
-                    required
-                  />
-                  <input
-                    className={`w-full px-3 py-2 rounded-xl border text-sm ${s.input}`}
-                    placeholder="Nom"
-                    value={inviteNom}
-                    onChange={(e) => setInviteNom(e.target.value)}
-                    required
-                  />
-                </div>
-                <input
-                  className={`w-full px-3 py-2 rounded-xl border text-sm ${s.input}`}
-                  placeholder="Email"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  required
-                />
-                <div className="grid grid-cols-2 gap-3">
-                  <select
-                    className={`w-full px-3 py-2 rounded-xl border text-sm ${s.input}`}
-                    value={inviteRole}
-                    onChange={(e) => setInviteRole(e.target.value as any)}
-                  >
-                    <option value="user">user</option>
-                    <option value="manager">manager</option>
-                    <option value="admin">admin</option>
-                  </select>
-                  <input
-                    className={`w-full px-3 py-2 rounded-xl border text-sm ${s.input}`}
-                    placeholder="Job role"
-                    value={inviteJobRole}
-                    onChange={(e) => setInviteJobRole(e.target.value)}
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="w-full py-3 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-[#3b82f6] to-[#7c5cfc] hover:opacity-95 shadow-lg shadow-[#3b82f6]/20"
-                >
-                  {t('backofficeSave')}
-                </button>
-
-                {inviteResult ? (
-                  <div className={`mt-2 px-3 py-2 rounded-xl text-sm ${s.border}`}>
-                    <div className={`text-xs font-bold tracking-[0.2em] ${s.muted}`}>
-                      {t('backofficeTempPassword')}
-                    </div>
-                    <div className="font-mono text-sm mt-1">{inviteResult.tempPassword}</div>
-                    <div className={`text-xs mt-1 ${s.muted}`}>{inviteResult.email}</div>
-                    {inviteResult.emailSent ? (
-                      <p className="text-xs text-emerald-500 mt-2">
-                        {t('backofficeEmailSent', { email: inviteResult.email })}
-                      </p>
-                    ) : inviteResult.emailError ? (
-                      <p className="text-xs text-amber-500 mt-2">
-                        {t('backofficeEmailFailed', { error: inviteResult.emailError })}
-                      </p>
-                    ) : null}
+          <section className="lg:col-span-5 space-y-6">
+            {user?.projectId ? (
+              <div className={`rounded-3xl p-6 ${s.border} bg-gradient-to-br from-[#7c5cfc]/10 to-[#3b82f6]/10 relative overflow-hidden`}>
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-[radial-gradient(circle,rgba(124,92,252,0.12),transparent_70%)] pointer-events-none" />
+                <div className="relative z-10">
+                  <h3 className={`font-bold text-base ${s.heading} mb-2`}>
+                    {t('backofficeInviteLinkTitle')}
+                  </h3>
+                  <p className={`text-xs ${s.muted} mb-4 leading-relaxed`}>
+                    {t('backofficeInviteLinkDesc')}
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      readOnly
+                      value={inviteLink}
+                      className={`px-3 py-2.5 rounded-xl text-xs flex-1 ${s.input}`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(inviteLink);
+                        setCopiedInviteLink(true);
+                        setTimeout(() => setCopiedInviteLink(false), 2000);
+                      }}
+                      className="px-4 py-2 rounded-xl font-bold text-xs bg-white text-[#0a0e17] hover:bg-white/90 transition-all cursor-pointer shrink-0 active:scale-95 shadow"
+                    >
+                      {copiedInviteLink ? t('backofficeCopied') : t('backofficeCopy')}
+                    </button>
                   </div>
-                ) : null}
-              </form>
-              )}
-            </div>
+                </div>
+              </div>
+            ) : null}
           </section>
 
           <section className="lg:col-span-7">
@@ -561,7 +547,7 @@ export default function BackofficePage() {
               ) : (
                 <div className={`divide-y ${s.divide}`}>
                   {members.map((m) => (
-                    <div key={m._id} className="px-5 py-4 flex items-center justify-between gap-4">
+                    <div key={m._id} className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <button
                         type="button"
                         onClick={() => setSelectedMemberId(m._id)}
@@ -572,19 +558,36 @@ export default function BackofficePage() {
                           {m.prenom} {m.nom}
                         </div>
                         <div className={`text-xs truncate ${s.muted}`}>
-                          {m.email} - {m.role} {m.is_online ? '(online)' : '(offline)'}
+                          {m.email} {m.is_online ? '(online)' : '(offline)'}
                         </div>
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => removeMember(m._id)}
-                        className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm ${s.iconBtn}`}
-                        title={t('backofficeDelete')}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        {t('backofficeDelete')}
-                      </button>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <label className="sr-only" htmlFor={`role-${m._id}`}>
+                          {t('backofficeChangeRole')}
+                        </label>
+                        <select
+                          id={`role-${m._id}`}
+                          value={m.role}
+                          disabled={savingRoleId === m._id}
+                          onChange={(e) => updateMemberRole(m._id, e.target.value)}
+                          className={`px-3 py-2 rounded-xl border text-sm ${s.input}`}
+                          title={t('backofficeChangeRole')}
+                        >
+                          <option value="user">user</option>
+                          <option value="manager">manager</option>
+                          <option value="admin">admin</option>
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => removeMember(m._id)}
+                          className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm ${s.iconBtn}`}
+                          title={t('backofficeDelete')}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          {t('backofficeDelete')}
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -757,6 +760,7 @@ export default function BackofficePage() {
             </div>
           </section>
         </div>
+        )}
       </main>
     </div>
   );

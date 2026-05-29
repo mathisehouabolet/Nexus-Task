@@ -3,22 +3,67 @@ const crypto = require('crypto');
 const User = require('../models/User');
 const Task = require('../models/Task');
 const Activity = require('../models/Activity');
-const { sendInvitationEmail } = require('../utils/emailService');
 const {
   addInvitedUserToInviterProject,
-  formatInviteEmailError,
 } = require('../utils/inviteHelpers');
 const { userCanInvite } = require('../middleware/inviteMiddleware');
 const { assertUserInProject } = require('../utils/projectScope');
+const { withOnlineStatus } = require('../utils/presence');
 
 function generateTempPassword() {
   return crypto.randomBytes(12).toString('hex');
 }
 
+const getAccess = async (req, res) => {
+  try {
+    res.json({
+      isAdmin: req.user.role === 'admin',
+      canShareInviteLink: req.user.role === 'admin',
+      canManageRoles: req.user.role === 'admin',
+    });
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+};
+
 const getCanInvite = async (req, res) => {
   try {
     const canInvite = await userCanInvite(req.user);
     res.json({ canInvite });
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+};
+
+const ALLOWED_ROLES = ['user', 'manager', 'admin'];
+
+const updateMemberRole = async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { role } = req.body || {};
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid user id' });
+    }
+    if (!ALLOWED_ROLES.includes(role)) {
+      return res.status(400).json({ message: 'Invalid role' });
+    }
+    if (String(req.user._id) === String(id)) {
+      return res.status(400).json({ message: 'Cannot change your own role' });
+    }
+
+    const inTeam = await assertUserInProject(id, req.projectId);
+    if (!inTeam) return res.status(404).json({ message: 'User not found' });
+
+    const updated = await User.findOneAndUpdate(
+      { _id: id, projectId: req.projectId },
+      { role },
+      { new: true }
+    )
+      .select('nom prenom email role job_role avatar_url is_online')
+      .lean();
+
+    if (!updated) return res.status(404).json({ message: 'User not found' });
+    res.json(updated);
   } catch (e) {
     res.status(500).json({ message: e.message });
   }
@@ -30,10 +75,10 @@ const listMembers = async (req, res) => {
       projectId: req.projectId,
       _id: { $ne: req.user._id },
     })
-      .select('nom prenom email role job_role avatar_url is_online createdAt')
-      .sort({ is_online: -1, prenom: 1, nom: 1 })
+      .select('nom prenom email role job_role avatar_url is_online lastSeenAt createdAt')
+      .sort({ lastSeenAt: -1, prenom: 1, nom: 1 })
       .lean();
-    res.json(list);
+    res.json(withOnlineStatus(list));
   } catch (e) {
     res.status(500).json({ message: e.message });
   }
@@ -64,8 +109,6 @@ const inviteMember = async (req, res) => {
 
     await addInvitedUserToInviterProject(req.user._id, user._id);
 
-    const emailResult = await sendInvitationEmail(user.email, user.prenom, tempPassword);
-
     res.status(201).json({
       _id: user._id,
       nom: user.nom,
@@ -76,8 +119,8 @@ const inviteMember = async (req, res) => {
       job_role: user.job_role || '',
       is_online: user.is_online,
       tempPassword,
-      emailSent: !!emailResult?.ok,
-      emailError: formatInviteEmailError(emailResult),
+      emailSent: false,
+      emailError: null,
     });
   } catch (e) {
     res.status(500).json({ message: e.message });
@@ -186,9 +229,11 @@ const projectProgress = async (req, res) => {
 };
 
 module.exports = {
+  getAccess,
   getCanInvite,
   listMembers,
   inviteMember,
+  updateMemberRole,
   deleteMember,
   memberHistory,
   projectProgress,

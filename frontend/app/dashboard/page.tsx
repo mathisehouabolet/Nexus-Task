@@ -9,7 +9,6 @@ import {
   Users,
   HelpCircle,
   LogOut,
-  Search,
   Bell,
   Settings,
   Zap,
@@ -165,7 +164,6 @@ export default function DashboardPage() {
   const [taskStatusFilter, setTaskStatusFilter] = useState<
     'all' | 'To Do' | 'In Progress' | 'Completed'
   >('all');
-  const [taskSearch, setTaskSearch] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const token = user?.token ?? '';
@@ -249,14 +247,11 @@ export default function DashboardPage() {
   };
 
   const filteredTasks = useMemo(() => {
-    const q = taskSearch.trim().toLowerCase();
     return tasks.filter((task) => {
       if (taskStatusFilter !== 'all' && task.status !== taskStatusFilter) return false;
-      if (!q) return true;
-      const hay = `${task.title} ${task.project_name || ''} ${task.description || ''}`.toLowerCase();
-      return hay.includes(q);
+      return true;
     });
-  }, [tasks, taskStatusFilter, taskSearch]);
+  }, [tasks, taskStatusFilter]);
 
   const deleteTaskRequest = async (task: TaskItem) => {
     if (!user?.token || deletingId) return;
@@ -296,6 +291,17 @@ export default function DashboardPage() {
   useEffect(() => {
     if (user?.token) refreshAll();
   }, [user?.token, refreshAll]);
+
+  useEffect(() => {
+    if (!user?.token) return;
+    const intervalId = window.setInterval(() => {
+      fetch(`${API_BASE}/api/team/active`, { headers: authHeaders(user.token) })
+        .then((res) => (res.ok ? res.json() : []))
+        .then((data) => setTeam(Array.isArray(data) ? data : []))
+        .catch(() => {});
+    }, 20_000);
+    return () => window.clearInterval(intervalId);
+  }, [user?.token]);
 
   const startSession = async () => {
     if (!user?.token || !focus?._id) return;
@@ -538,14 +544,7 @@ export default function DashboardPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <div className="flex-1 max-w-xl relative">
-            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${s.muted}`} />
-            <input
-              readOnly
-              placeholder={t('searchPlaceholder')}
-              className={`w-full h-10 pl-10 pr-4 rounded-xl border text-sm ${s.input}`}
-            />
-          </div>
+          <div className="flex-1" />
           <button type="button" className={`p-2 rounded-xl ${s.iconBtn}`}>
             <Bell className="w-5 h-5" />
           </button>
@@ -790,13 +789,6 @@ export default function DashboardPage() {
                     <option value="In Progress">In Progress</option>
                     <option value="Completed">Completed</option>
                   </select>
-                  <input
-                    type="search"
-                    value={taskSearch}
-                    onChange={(e) => setTaskSearch(e.target.value)}
-                    placeholder={t('searchTasks')}
-                    className={`h-10 px-3 rounded-xl text-sm flex-1 sm:w-48 ${s.input}`}
-                  />
                 </div>
               )}
             </div>

@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "vercel-build": "echo \"No build step\"",
     "seed": "node seeder.js",
     "purge:db": "node scripts/purge-db.js",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -23,7 +24,7 @@
     "jsonwebtoken": "^9.0.3",
     "mongodb": "^7.2.0",
     "mongoose": "^9.6.1",
-    "resend": "^6.12.3"
+    "serverless-http": "^3.2.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

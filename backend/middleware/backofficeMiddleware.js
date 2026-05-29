@@ -1,8 +1,7 @@
-const Project = require('../models/Project');
 const { getProjectIdForUser } = require('../utils/projectScope');
 
-/** Accès back-office : admin, manager, ou créateur du workspace de l'utilisateur. */
-const requireBackofficeAccess = async (req, res, next) => {
+/** Tout membre du workspace peut accéder au back-office (lecture du statut admin). */
+const requireBackofficeMember = async (req, res, next) => {
   if (!req.user) return res.status(401).json({ message: 'Not authorized' });
 
   const projectId = await getProjectIdForUser(req.user);
@@ -10,11 +9,19 @@ const requireBackofficeAccess = async (req, res, next) => {
     return res.status(403).json({ message: 'Aucun espace de travail associé.' });
   }
   req.projectId = projectId;
-
-  if (['admin', 'manager'].includes(req.user.role)) return next();
-  const isCreator = await Project.exists({ _id: projectId, createdBy: req.user._id });
-  if (isCreator) return next();
-  return res.status(403).json({ message: 'Forbidden' });
+  next();
 };
 
-module.exports = { requireBackofficeAccess };
+/** Actions réservées aux administrateurs de l'équipe. */
+const requireTeamAdmin = (req, res, next) => {
+  if (!req.user) return res.status(401).json({ message: 'Not authorized' });
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({
+      message: "Vous n'êtes pas administrateur dans cette équipe.",
+      code: 'NOT_TEAM_ADMIN',
+    });
+  }
+  next();
+};
+
+module.exports = { requireBackofficeMember, requireTeamAdmin };

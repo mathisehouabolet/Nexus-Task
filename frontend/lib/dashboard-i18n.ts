@@ -100,7 +100,10 @@ const FR: Record<string, string> = {
   backofficeTempPassword: 'Mot de passe temporaire',
   backofficeEmailSent: 'Invitation envoyée par email à {email}.',
   backofficeEmailFailed: 'Compte créé, mais l\'email n\'a pas été envoyé : {error}',
-  backofficeInviteForbidden: 'Seuls l\'administrateur, le manager ou le créateur de l\'équipe peuvent inviter.',
+  backofficeInviteForbidden: 'Seuls les administrateurs peuvent partager le lien d\'invitation.',
+  backofficeNotAdmin: "Vous n'êtes pas administrateur dans cette équipe. Seuls les administrateurs peuvent accéder au back-office.",
+  backofficeChangeRole: 'Modifier le rôle',
+  backofficeInviteLinkAdminOnly: "Seuls les administrateurs peuvent partager le lien d'invitation.",
   backofficeNoHistory: "Aucun historique pour ce membre.",
   backofficeNoProjects: "Aucun projet disponible.",
   backofficeNoMembers: "Aucun membre.",
@@ -111,6 +114,13 @@ const FR: Record<string, string> = {
   deleteTask: 'Supprimer',
   confirmDelete: 'Supprimer « {title} » ? Cette action est irréversible.',
   filterNoResults: 'Aucune tâche ne correspond au filtre.',
+  backofficeInviteLinkTitle: "Lien d'invitation au projet",
+  backofficeInviteLinkDesc: "Partagez ce lien unique avec vos collaborateurs pour qu'ils rejoignent directement l'espace de votre projet.",
+  backofficeCopy: "Copier",
+  backofficeCopied: "Copié !",
+  registerJoinTitle: "Rejoindre le projet {project}",
+  registerJoinSubtitle: "Créez votre compte pour collaborer avec l'équipe sur Nexus Task.",
+  registerJoinSubmit: "Rejoindre l'équipe",
 };
 
 const EN: Record<string, string> = {
@@ -143,7 +153,10 @@ const EN: Record<string, string> = {
   backofficeTempPassword: 'Temporary password',
   backofficeEmailSent: 'Invitation email sent to {email}.',
   backofficeEmailFailed: 'Account created, but email was not sent: {error}',
-  backofficeInviteForbidden: 'Only the admin, manager, or team creator can send invitations.',
+  backofficeInviteForbidden: 'Only administrators can share the invitation link.',
+  backofficeNotAdmin: 'You are not an administrator in this team. Only administrators can access the back office.',
+  backofficeChangeRole: 'Change role',
+  backofficeInviteLinkAdminOnly: 'Only administrators can share the invitation link.',
   backofficeNoHistory: 'No history for this member.',
   backofficeNoProjects: 'No projects available.',
   backofficeNoMembers: 'No members.',
@@ -221,6 +234,13 @@ const EN: Record<string, string> = {
   deleteTask: 'Delete',
   confirmDelete: 'Delete “{title}”? This cannot be undone.',
   filterNoResults: 'No tasks match your filter.',
+  backofficeInviteLinkTitle: "Project Invitation Link",
+  backofficeInviteLinkDesc: "Share this unique link with your collaborators to let them join your project space directly.",
+  backofficeCopy: "Copy",
+  backofficeCopied: "Copied!",
+  registerJoinTitle: "Join the {project} project",
+  registerJoinSubtitle: "Create your account to collaborate with the team on Nexus Task.",
+  registerJoinSubmit: "Join the team",
 };
 
 const MAP: Record<AppLocale, Record<string, string>> = { fr: FR, en: EN };

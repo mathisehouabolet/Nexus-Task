@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { goOffline } from '@/lib/presence';
 
 interface User {
   _id: string;
@@ -11,6 +12,7 @@ interface User {
   token: string;
   avatar_url?: string;
   job_role?: string;
+  projectId?: string;
 }
 
 interface AuthContextType {
@@ -49,7 +51,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
-    setUser(null);
+    setUser((prev) => {
+      if (prev?.token) goOffline(prev.token);
+      return null;
+    });
     localStorage.removeItem('nexus_user');
   };
 

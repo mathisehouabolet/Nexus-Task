@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { PreferencesProvider } from "@/context/PreferencesContext";
+import { PresenceManager } from "@/components/PresenceManager";
 
 export const metadata: Metadata = {
   title: "Nexus Task - SaaS Management",
@@ -18,6 +19,7 @@ export default function RootLayout({
       <body className="antialiased">
         <AuthProvider>
           <PreferencesProvider>
+            <PresenceManager />
             {children}
           </PreferencesProvider>
         </AuthProvider>

@@ -2,8 +2,6 @@ const crypto = require('crypto');
 const User = require('../models/User');
 const Project = require('../models/Project');
 const generateToken = require('../utils/generateToken');
-const { sendInvitationEmail } = require('../utils/emailService');
-const { formatInviteEmailError } = require('../utils/inviteHelpers');
 
 function generateTempPassword() {
   return crypto.randomBytes(12).toString('hex');
@@ -30,17 +28,12 @@ function parseDueDate(value) {
 }
 
 // POST /api/onboarding/register
-// Body: { fullName, email, password, project: { name, objective, due_date }, invites?: [{ email, fullName?, role? }] }
+// Body: { fullName, email, password, project?: { name, objective, due_date }, invites?: [{ email, fullName?, role? }], projectId?: string }
 const registerWorkspace = async (req, res) => {
   try {
-    const { fullName, email, password, project, invites } = req.body || {};
+    const { fullName, email, password, project, invites, projectId } = req.body || {};
     if (!fullName || !email || !password) {
       return res.status(400).json({ message: 'fullName, email, password are required' });
-    }
-    if (!project || !project.name) {
-      return res
-        .status(400)
-        .json({ message: 'project.name is required' });
     }
 
     const normalizedEmail = String(email).trim().toLowerCase();
@@ -50,6 +43,57 @@ const registerWorkspace = async (req, res) => {
       return res.status(400).json({ message: 'Un compte avec cet email existe déjà.' });
     }
     const { prenom, nom } = splitFullName(fullName);
+
+    // Case 1: Joining an existing project via invitation link
+    if (projectId) {
+      const existingProject = await Project.findById(projectId);
+      if (!existingProject) {
+        return res.status(404).json({ message: 'Le projet spécifié est introuvable ou a été supprimé.' });
+      }
+
+      const user = await User.create({
+        nom,
+        prenom,
+        email: normalizedEmail,
+        password: String(password),
+        role: 'user',
+        projectId: existingProject._id,
+        is_online: false,
+      });
+
+      await Project.updateOne(
+        { _id: existingProject._id },
+        { $addToSet: { members: user._id } }
+      );
+
+      return res.status(201).json({
+        user: {
+          _id: user._id,
+          nom: user.nom,
+          prenom: user.prenom,
+          email: user.email,
+          role: user.role,
+          avatar_url: user.avatar_url || '',
+          job_role: user.job_role || '',
+          projectId: existingProject._id,
+          token: generateToken(user._id),
+        },
+        project: {
+          _id: existingProject._id,
+          name: existingProject.name,
+          objective: existingProject.objective,
+          due_date: existingProject.due_date,
+        },
+        invited: [],
+      });
+    }
+
+    // Case 2: Standard registration with a new workspace and project
+    if (!project || !project.name) {
+      return res
+        .status(400)
+        .json({ message: 'project.name is required' });
+    }
 
     const owner = await User.create({
       nom,
@@ -77,7 +121,6 @@ const registerWorkspace = async (req, res) => {
         is_online: false,
         projectId: null,
       });
-      const emailResult = await sendInvitationEmail(user.email, user.prenom, tempPassword);
 
       createdInvites.push({
         _id: user._id,
@@ -86,8 +129,8 @@ const registerWorkspace = async (req, res) => {
         email: user.email,
         role: user.role,
         tempPassword,
-        emailSent: !!emailResult?.ok,
-        emailError: formatInviteEmailError(emailResult),
+        emailSent: false,
+        emailError: null,
       });
     }
 
@@ -116,6 +159,7 @@ const registerWorkspace = async (req, res) => {
         role: owner.role,
         avatar_url: owner.avatar_url || '',
         job_role: owner.job_role || '',
+        projectId: proj._id,
         token: generateToken(owner._id),
       },
       project: {
@@ -131,5 +175,19 @@ const registerWorkspace = async (req, res) => {
   }
 };
 
-module.exports = { registerWorkspace };
+// GET /api/onboarding/project/:id
+const getProjectInfo = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const proj = await Project.findById(id).select('name').lean();
+    if (!proj) {
+      return res.status(404).json({ message: 'Projet introuvable.' });
+    }
+    res.json({ name: proj.name });
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+};
+
+module.exports = { registerWorkspace, getProjectInfo };
 

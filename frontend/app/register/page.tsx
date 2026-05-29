@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { 
   Zap, 
   ShieldCheck, 
@@ -18,22 +18,22 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
-export default function RegisterPage() {
+function RegisterForm() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [projectName, setProjectName] = useState('');
   const [projectObjective, setProjectObjective] = useState('');
   const [projectDueDate, setProjectDueDate] = useState('');
-  const [inviteEmails, setInviteEmails] = useState('');
-  const [inviteResult, setInviteResult] = useState<
-    Array<{ email: string; tempPassword: string; emailSent?: boolean; emailError?: string | null }>
-  >([]);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
   
+  const searchParams = useSearchParams();
+  const inviteProjectId = searchParams ? searchParams.get('invite') : null;
+  const [invitedProjectName, setInvitedProjectName] = useState<string | null>(null);
+
   const { login } = useAuth();
   const router = useRouter();
 
@@ -41,52 +41,60 @@ export default function RegisterPage() {
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    if (!inviteProjectId) return;
+    let active = true;
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/onboarding/project/${inviteProjectId}`)
+      .then((res) => {
+        if (res.ok) return res.json();
+        throw new Error('Project not found');
+      })
+      .then((data) => {
+        if (active) setInvitedProjectName(data.name);
+      })
+      .catch((err) => {
+        console.error(err);
+        if (active) setError("Le lien d'invitation n'est pas valide ou le projet a été supprimé.");
+      });
+    return () => {
+      active = false;
+    };
+  }, [inviteProjectId]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setInviteResult([]);
     setLoading(true);
 
     try {
-      const invites = inviteEmails
-        .split(/\r?\n|,/g)
-        .map((s) => s.trim())
-        .filter(Boolean)
-        .map((email) => ({ email }));
+      const body: any = {
+        fullName,
+        email,
+        password,
+      };
+
+      if (inviteProjectId) {
+        body.projectId = inviteProjectId;
+      } else {
+        body.project = {
+          name: projectName,
+          objective: projectObjective,
+          due_date: projectDueDate || null,
+        };
+      }
 
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/onboarding/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          fullName,
-          email,
-          password,
-          project: {
-            name: projectName,
-            objective: projectObjective,
-            due_date: projectDueDate || null,
-          },
-          invites,
-        }),
+        body: JSON.stringify(body),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
         throw new Error(data.message || 'Registration failed');
-      }
-
-      if (Array.isArray(data.invited)) {
-        setInviteResult(
-          data.invited.map((row: { email?: string; tempPassword?: string; emailSent?: boolean; emailError?: string | null }) => ({
-            email: String(row.email || ''),
-            tempPassword: String(row.tempPassword || ''),
-            emailSent: row.emailSent,
-            emailError: row.emailError,
-          }))
-        );
       }
 
       login(data.user);
@@ -219,10 +227,14 @@ export default function RegisterPage() {
             {/* Header */}
             <div className="mb-8 animate-fade-in-up">
               <h2 className="text-[2rem] font-extrabold text-white mb-2 tracking-tight">
-                Create Account
+                {inviteProjectId && invitedProjectName 
+                  ? `Rejoindre ${invitedProjectName}`
+                  : "Create Account"}
               </h2>
               <p className="text-slate-400 text-sm">
-                Join our community of high-performers.
+                {inviteProjectId && invitedProjectName
+                  ? "Créez votre compte pour collaborer avec l'équipe sur Nexus Task."
+                  : "Join our community of high-performers."}
               </p>
             </div>
 
@@ -312,112 +324,65 @@ export default function RegisterPage() {
               </div>
 
               {/* Project setup */}
-              <div className="pt-2">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-8 h-8 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center">
-                    <LayoutGrid className="w-4 h-4 text-slate-300" />
-                  </div>
-                  <div>
-                    <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                      Project setup
+              {!inviteProjectId && (
+                <div className="pt-2">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-8 h-8 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center">
+                      <LayoutGrid className="w-4 h-4 text-slate-300" />
                     </div>
-                    <div className="text-xs text-slate-400">Create your first project.</div>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                      Project name
-                    </label>
-                    <input
-                      id="register-project-name"
-                      type="text"
-                      value={projectName}
-                      onChange={(e) => setProjectName(e.target.value)}
-                      placeholder="Nexus Launch"
-                      required
-                      className="w-full h-[46px] px-4 rounded-xl bg-white/[0.02] border border-white/[0.08] text-white placeholder:text-slate-600 focus:border-[#7c5cfc] focus:shadow-[0_0_0_3px_rgba(124,92,252,0.12)] transition-all duration-200 text-sm"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                      Objective
-                    </label>
-                    <textarea
-                      id="register-project-objective"
-                      value={projectObjective}
-                      onChange={(e) => setProjectObjective(e.target.value)}
-                      placeholder="What are you trying to achieve?"
-                      rows={3}
-                      className="w-full px-4 py-3 rounded-xl bg-white/[0.02] border border-white/[0.08] text-white placeholder:text-slate-600 focus:border-[#7c5cfc] focus:shadow-[0_0_0_3px_rgba(124,92,252,0.12)] transition-all duration-200 text-sm resize-none"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                      Due date
-                    </label>
-                    <input
-                      id="register-project-due"
-                      type="date"
-                      value={projectDueDate}
-                      onChange={(e) => setProjectDueDate(e.target.value)}
-                      className="w-full h-[46px] px-4 rounded-xl bg-white/[0.02] border border-white/[0.08] text-white placeholder:text-slate-600 focus:border-[#7c5cfc] focus:shadow-[0_0_0_3px_rgba(124,92,252,0.12)] transition-all duration-200 text-sm"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Invite members */}
-              <div className="pt-2">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-8 h-8 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-center">
-                    <Users className="w-4 h-4 text-slate-300" />
-                  </div>
-                  <div>
-                    <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                      Invite members
-                    </div>
-                    <div className="text-xs text-slate-400">
-                      One email per line (optional).
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                        Project setup
+                      </div>
+                      <div className="text-xs text-slate-400">Create your first project.</div>
                     </div>
                   </div>
-                </div>
 
-                <textarea
-                  id="register-invites"
-                  value={inviteEmails}
-                  onChange={(e) => setInviteEmails(e.target.value)}
-                  placeholder={"alex@company.com\nsarah@company.com"}
-                  rows={3}
-                  className="w-full px-4 py-3 rounded-xl bg-white/[0.02] border border-white/[0.08] text-white placeholder:text-slate-600 focus:border-[#7c5cfc] focus:shadow-[0_0_0_3px_rgba(124,92,252,0.12)] transition-all duration-200 text-sm resize-none"
-                />
-
-                {inviteResult.length ? (
-                  <div className="mt-3 p-3 rounded-xl bg-white/[0.02] border border-white/[0.08]">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-2">
-                      Temporary passwords
-                    </div>
+                  <div className="space-y-3">
                     <div className="space-y-2">
-                      {inviteResult.map((r) => (
-                        <div key={r.email} className="space-y-0.5">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="text-xs text-slate-300 truncate">{r.email}</div>
-                            <div className="text-xs font-mono text-white">{r.tempPassword}</div>
-                          </div>
-                          {r.emailSent ? (
-                            <div className="text-[10px] text-emerald-400">Email envoyé</div>
-                          ) : r.emailError ? (
-                            <div className="text-[10px] text-amber-400">{r.emailError}</div>
-                          ) : null}
-                        </div>
-                      ))}
+                      <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                        Project name
+                      </label>
+                      <input
+                        id="register-project-name"
+                        type="text"
+                        value={projectName}
+                        onChange={(e) => setProjectName(e.target.value)}
+                        placeholder="Nexus Launch"
+                        required={!inviteProjectId}
+                        className="w-full h-[46px] px-4 rounded-xl bg-white/[0.02] border border-white/[0.08] text-white placeholder:text-slate-600 focus:border-[#7c5cfc] focus:shadow-[0_0_0_3px_rgba(124,92,252,0.12)] transition-all duration-200 text-sm"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                        Objective
+                      </label>
+                      <textarea
+                        id="register-project-objective"
+                        value={projectObjective}
+                        onChange={(e) => setProjectObjective(e.target.value)}
+                        placeholder="What are you trying to achieve?"
+                        rows={3}
+                        className="w-full px-4 py-3 rounded-xl bg-white/[0.02] border border-white/[0.08] text-white placeholder:text-slate-600 focus:border-[#7c5cfc] focus:shadow-[0_0_0_3px_rgba(124,92,252,0.12)] transition-all duration-200 text-sm resize-none"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                        Due date
+                      </label>
+                      <input
+                        id="register-project-due"
+                        type="date"
+                        value={projectDueDate}
+                        onChange={(e) => setProjectDueDate(e.target.value)}
+                        className="w-full h-[46px] px-4 rounded-xl bg-white/[0.02] border border-white/[0.08] text-white placeholder:text-slate-600 focus:border-[#7c5cfc] focus:shadow-[0_0_0_3px_rgba(124,92,252,0.12)] transition-all duration-200 text-sm"
+                      />
                     </div>
                   </div>
-                ) : null}
-              </div>
+                </div>
+              )}
 
               {/* Submit */}
               <div className="pt-1" />
@@ -431,7 +396,7 @@ export default function RegisterPage() {
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4" />
-                    Create Free Account
+                    {inviteProjectId ? "Rejoindre le projet" : "Create Free Account"}
                   </>
                 )}
               </button>
@@ -453,5 +418,17 @@ export default function RegisterPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#0a0e17] flex items-center justify-center text-slate-400 font-[Inter,system-ui,sans-serif]">
+        <div className="w-8 h-8 border-2 border-slate-500 border-t-[#7c5cfc] rounded-full animate-spin" />
+      </div>
+    }>
+      <RegisterForm />
+    </Suspense>
   );
 }
